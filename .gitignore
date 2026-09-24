@@ -2,3 +2,4 @@
 dist/
 .swiftpm/
 DerivedData/
+.vscode/

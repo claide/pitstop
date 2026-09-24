@@ -7,19 +7,31 @@ v0.2: Claude Code and Codex, multiple accounts, reset notifications, quota check
 No API keys. Starts at login by default; turn that off from the menu.
 
 ## Install
-Requires macOS 14+ and Xcode Command Line Tools (Homebrew already installs them).
+Requires macOS 14+ and [Homebrew](https://brew.sh).
 
 ```bash
-brew install YOUR_GITHUB_USER/tap/pitstop
+brew install claide/tap/pitstop
 pitstop app install
 pitstop status
 ```
-Update with `brew update && brew upgrade pitstop && pitstop app install`.
+Update later with `brew update && brew upgrade pitstop && pitstop app install`.
 
-For local development, `./scripts/bundle.sh --install` builds from this folder instead.
-Releasing is covered in [RELEASING.md](RELEASING.md).
-On the first Claude refresh, macOS asks whether `security` may read "Claude Code-credentials".
-Click **Always Allow**. Allow notifications when asked.
+`pitstop app install` copies the app into Applications and launches it. Run it again after
+every `brew upgrade pitstop`. On the first Claude refresh, macOS asks whether `security` may
+read "Claude Code-credentials", click **Always Allow**. Allow notifications when asked.
+
+Homebrew builds Pitstop from source on your Mac (it's not signed yet), so:
+- The first install takes a minute or two to compile. A warning about "tap trust" for other,
+  unrelated taps is normal, ignore it.
+- If it fails with "Your Command Line Tools are too outdated," run
+  `sudo rm -rf /Library/Developer/CommandLineTools && sudo xcode-select --install`, let that
+  finish, then retry the two commands above.
+- If Pitstop doesn't appear in your menu bar after `pitstop app install`, check
+  **System Settings → Control Center** for a Pitstop entry set to hidden, and if you'd recently
+  tried building it another way, restart your Mac once, then reopen it from Applications.
+
+For local development instead of Homebrew, `./scripts/bundle.sh --install` builds from this
+folder. Releasing new versions is covered in [RELEASING.md](RELEASING.md).
 
 ## The menu bar
 - The number is your tightest session or weekly limit across all accounts.

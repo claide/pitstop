@@ -21,6 +21,10 @@ USAGE
 
   pitstop accounts
       Show configured accounts and where accounts.json lives.
+
+  pitstop app install
+      Copy the menu bar app from Homebrew into Applications and launch it.
+      Run again after `brew upgrade pitstop`.
 """
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -67,6 +71,58 @@ func loadAndFetch(provider: ProviderKind? = nil) async -> [AccountSnapshot] {
     let snapshots = await UsageFetcher.fetchAll(accounts)
     if provider == nil { SnapshotFile.write(snapshots) }
     return snapshots
+}
+
+@discardableResult
+func run(_ path: String, _ arguments: [String]) -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = arguments
+    do {
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
+    } catch {
+        return -1
+    }
+}
+
+/// Copies Pitstop.app from where Homebrew built it into Applications, so launch at
+/// login and Spotlight work and the app survives `brew upgrade` swapping folders.
+func installApp() -> Never {
+    guard let exe = Bundle.main.executableURL?.resolvingSymlinksInPath() else {
+        fail("Couldn't find where pitstop is installed.", code: 1)
+    }
+    // .../Pitstop.app/Contents/Helpers/pitstop
+    let source = exe.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    guard source.pathExtension == "app" else {
+        fail("Pitstop.app wasn't found next to this pitstop. Install with Homebrew, or use scripts/bundle.sh.", code: 1)
+    }
+
+    let fm = FileManager.default
+    let systemApps = URL(fileURLWithPath: "/Applications")
+    let targetDir = fm.isWritableFile(atPath: systemApps.path)
+        ? systemApps
+        : fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
+    try? fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
+    let dest = targetDir.appendingPathComponent("Pitstop.app")
+
+    guard source.standardizedFileURL.path != dest.standardizedFileURL.path else {
+        print("Pitstop is already running from \(dest.path).")
+        exit(0)
+    }
+
+    run("/usr/bin/pkill", ["-x", "Pitstop"])
+    try? fm.removeItem(at: dest)
+    guard run("/usr/bin/ditto", [source.path, dest.path]) == 0 else {
+        fail("Couldn't copy the app to \(dest.path).", code: 1)
+    }
+    run("/bin/chmod", ["-R", "u+w", dest.path])
+    run("/usr/bin/codesign", ["--force", "--sign", "-", dest.appendingPathComponent("Contents/Helpers/pitstop").path])
+    run("/usr/bin/codesign", ["--force", "--sign", "-", dest.path])
+    run("/usr/bin/open", [dest.path])
+    print("Installed \(dest.path) and launched it. Look for the fuel pump in your menu bar.")
+    exit(0)
 }
 
 guard let command = args.first else {
@@ -166,6 +222,10 @@ case "accounts":
         let state = !account.isEnabled ? "disabled" : (UsageFetcher.isInstalled(account) ? "found" : "not found")
         print("  \(account.provider.displayName) (\(account.name))  \(account.resolvedDir)  [\(state)]")
     }
+
+case "app":
+    guard args.count >= 2, args[1] == "install" else { fail("Usage: pitstop app install") }
+    installApp()
 
 case "help", "--help", "-h":
     print(usage)

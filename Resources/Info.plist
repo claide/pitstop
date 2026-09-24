@@ -4,7 +4,7 @@
 <dict>
     <key>CFBundleExecutable</key><string>Pitstop</string>
     <!-- Change to a reverse domain you own before sharing the app -->
-    <key>CFBundleIdentifier</key><string>com..pitstop</string>
+    <key>CFBundleIdentifier</key><string>com.claide.pitstop</string>
     <key>CFBundleName</key><string>Pitstop</string>
     <key>CFBundleDisplayName</key><string>Pitstop</string>
     <key>CFBundlePackageType</key><string>APPL</string>

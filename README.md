@@ -7,12 +7,17 @@ v0.2: Claude Code and Codex, multiple accounts, reset notifications, quota check
 No API keys. Starts at login by default; turn that off from the menu.
 
 ## Install
-Requires macOS 14+, Apple silicon, Xcode 15+ (or the Swift 5.9+ toolchain).
+Requires macOS 14+ and Xcode Command Line Tools (Homebrew already installs them).
 
 ```bash
-./scripts/bundle.sh --install
+brew install YOUR_GITHUB_USER/tap/pitstop
+pitstop app install
 pitstop status
 ```
+Update with `brew update && brew upgrade pitstop && pitstop app install`.
+
+For local development, `./scripts/bundle.sh --install` builds from this folder instead.
+Releasing is covered in [RELEASING.md](RELEASING.md).
 On the first Claude refresh, macOS asks whether `security` may read "Claude Code-credentials".
 Click **Always Allow**. Allow notifications when asked.
 

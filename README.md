@@ -3,8 +3,9 @@
 A menu bar app that shows how much AI quota you have left and when it refills,
 plus a `pitstop` command that tells execute-jira whether a ticket fits before it starts.
 
-v0.2: Claude Code and Codex, multiple accounts, reset notifications, quota check, ticket calibration.
-No API keys. Starts at login by default; turn that off from the menu.
+v0.3: Claude Code and Codex, multiple accounts, reset notifications, quota check, ticket calibration.
+No API keys. Starts at login by default; turn that off from the menu. The popover shows its
+version under the title, useful for confirming you're on the latest build.
 
 ## Install
 Requires macOS 14+ and [Homebrew](https://brew.sh).

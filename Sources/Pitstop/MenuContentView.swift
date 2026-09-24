@@ -1,6 +1,10 @@
 import PitstopCore
 import SwiftUI
 
+/// App Store version string ("0.2.0"), falling back to "" if Info.plist is missing it
+/// (e.g. running via `swift run` instead of a real .app bundle).
+private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+
 struct MenuContentView: View {
     @EnvironmentObject private var store: UsageStore
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
@@ -9,13 +13,28 @@ struct MenuContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Pitstop").font(.headline)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Pitstop").font(.headline)
+                    if let appVersion {
+                        Text("v\(appVersion)").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
                 Spacer()
-                if store.isRefreshing { ProgressView().controlSize(.small) }
-                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless)
-                    .help("Refresh now")
+                HStack(spacing: 8) {
+                    if store.isRefreshing {
+                        ProgressView().controlSize(.mini)
+                    } else if let last = store.lastRefresh {
+                        TimelineView(.periodic(from: .now, by: 30)) { context in
+                            Text("Updated \(relativeTime(last, now: context.date))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Button("Refresh") { store.refresh() }
+                        .font(.caption2)
+                        .controlSize(.small)
+                }
             }
 
             if let problem = store.accountsProblem {
@@ -55,22 +74,52 @@ struct MenuContentView: View {
                     if enabled { ResetNotifier.schedule(for: store.snapshots) } else { ResetNotifier.cancelAll() }
                 }
 
-            HStack {
-                Button("Edit accounts") { NSWorkspace.shared.open(PitstopPaths.accounts) }
-                Spacer()
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-            }
+            MenuRow("Edit accounts") { NSWorkspace.shared.open(PitstopPaths.accounts) }
 
-            if let last = store.lastRefresh {
-                Text("Updated \(last.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Divider()
+
+            MenuRow("Quit") { NSApplication.shared.terminate(nil) }
         }
         .padding(14)
         .frame(width: 300)
         .onAppear { store.refreshIfStale() }
     }
+}
+
+/// A full-width, borderless, left-aligned row for the bottom of the menu
+/// (Edit accounts, Quit), with a subtle hover highlight.
+struct MenuRow: View {
+    let title: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 4)
+                .background(hovering ? Color.primary.opacity(0.06) : .clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+/// "just now" / "3m ago" / "2h ago" for the header's Updated label.
+private func relativeTime(_ date: Date, now: Date = .now) -> String {
+    let seconds = Int(now.timeIntervalSince(date))
+    if seconds < 60 { return "just now" }
+    if seconds < 3_600 { return "\(seconds / 60)m ago" }
+    return "\(seconds / 3_600)h ago"
 }
 
 struct AccountSection: View {

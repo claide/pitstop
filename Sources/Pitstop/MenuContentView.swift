@@ -122,10 +122,11 @@ private func relativeTime(_ date: Date, now: Date = .now) -> String {
     return "\(seconds / 3_600)h ago"
 }
 
-/// Each tool's logo, from the bundled asset catalog.
+/// Each tool's logo, shown in a soft round chip so both read consistently
+/// even though the source art differs (a flat mark vs. a gradient icon).
 struct ProviderBadge: View {
     let provider: ProviderKind
-    var size: CGFloat = 15
+    var size: CGFloat = 20
 
     private var fileName: String {
         switch provider {
@@ -138,10 +139,21 @@ struct ProviderBadge: View {
         Group {
             if let url = Bundle.module.url(forResource: fileName, withExtension: "png"),
                let nsImage = NSImage(contentsOf: url) {
-                Image(nsImage: nsImage).resizable().scaledToFit()
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(size * 0.22)
+            } else {
+                Image(systemName: "questionmark.circle")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(size * 0.22)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(width: size, height: size)
+        .background(Color.primary.opacity(0.06))
+        .clipShape(Circle())
     }
 }
 
@@ -150,7 +162,7 @@ struct AccountSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center, spacing: 6) {
                 ProviderBadge(provider: snapshot.account.provider)
                 Text(snapshot.account.provider.displayName).font(.subheadline.weight(.semibold))
                 Text(snapshot.account.name).font(.caption).foregroundStyle(.secondary)

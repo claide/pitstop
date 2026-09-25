@@ -122,12 +122,36 @@ private func relativeTime(_ date: Date, now: Date = .now) -> String {
     return "\(seconds / 3_600)h ago"
 }
 
+/// Each tool's logo, from the bundled asset catalog.
+struct ProviderBadge: View {
+    let provider: ProviderKind
+    var size: CGFloat = 15
+
+    private var fileName: String {
+        switch provider {
+        case .claude: return "claude-logo"
+        case .codex: return "codex-logo"
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let url = Bundle.module.url(forResource: fileName, withExtension: "png"),
+               let nsImage = NSImage(contentsOf: url) {
+                Image(nsImage: nsImage).resizable().scaledToFit()
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 struct AccountSection: View {
     let snapshot: AccountSnapshot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
+                ProviderBadge(provider: snapshot.account.provider)
                 Text(snapshot.account.provider.displayName).font(.subheadline.weight(.semibold))
                 Text(snapshot.account.name).font(.caption).foregroundStyle(.secondary)
             }
@@ -150,14 +174,13 @@ struct WindowRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(window.label).font(.caption)
+                Text(window.label).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Text("\(percent(window.remainingPercent)) left")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(color)
             }
-            ProgressView(value: min(window.usedPercent, 100), total: 100)
-                .tint(color)
+            ThinProgressBar(fraction: min(window.usedPercent, 100) / 100, tint: color)
             if let resets = window.resetsAt {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
                     Text("Resets in \(countdown(to: resets, from: context.date)), \(resetClock(resets, now: context.date))")
@@ -174,5 +197,22 @@ struct WindowRow: View {
         case ..<40: return .orange
         default: return .green
         }
+    }
+}
+
+/// A slimmer bar than the stock `ProgressView`, since the default is too thick for a menu-bar popover.
+struct ThinProgressBar: View {
+    let fraction: Double
+    let tint: Color
+    private let height: CGFloat = 3
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.1))
+                Capsule().fill(tint).frame(width: geo.size.width * max(0, min(1, fraction)))
+            }
+        }
+        .frame(height: height)
     }
 }

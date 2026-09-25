@@ -13,6 +13,7 @@ mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Helpers" "$OUT/Contents/Resources"
 cp "$BIN_DIR/Pitstop" "$OUT/Contents/MacOS/Pitstop"
 cp "$BIN_DIR/PitstopCLI" "$OUT/Contents/Helpers/pitstop"
 cp Resources/Info.plist "$OUT/Contents/Info.plist"
+cp -R "$BIN_DIR/Pitstop_Pitstop.bundle" "$OUT/Contents/Resources/"
 
 # Ad-hoc signatures, fine for your own Macs. Sign the helper before the app.
 codesign --force --sign - "$OUT/Contents/Helpers/pitstop"

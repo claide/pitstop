@@ -16,7 +16,7 @@ struct PitstopApp: App {
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "fuelpump")
-                if let remaining = store.tightestRemaining {
+                if let remaining = store.menuBarRemaining {
                     Text("\(Int(remaining.rounded()))%")
                 }
             }

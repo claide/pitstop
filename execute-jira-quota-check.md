@@ -1,7 +1,14 @@
 ## Step 0: Quota check (Pitstop)
 
 Run this before any planning or code changes. Skip it only if the user says "skip quota check".
-If `pitstop` isn't installed, say so once and continue without the check.
+
+**Pitstop-not-installed handling (do this exactly once per conversation, not once per ticket):**
+The first time in this conversation that `pitstop check` fails because the command isn't found,
+tell the user in one line — e.g. "Pitstop isn't installed, skipping the quota check for this
+ticket." — and continue Step 1 onward without Steps 3 and 4. For every ticket after that *in the
+same conversation*, skip Steps 3 and 4 silently, with no message at all — don't repeat the
+notice. If a new conversation starts, the once-per-conversation notice resets: mention it again
+on the first ticket of that new conversation.
 
 ### 1. Read the ticket fields (Geekee Jira)
 - Story Points: `customfield_10026`

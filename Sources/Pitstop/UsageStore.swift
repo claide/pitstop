@@ -23,9 +23,15 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// The number in the menu bar: your tightest session or weekly limit across all accounts.
-    var tightestRemaining: Double? {
-        snapshots.flatMap(\.windows).filter { $0.kind != .other }.map(\.remainingPercent).min()
+    /// The number shown in the menu bar: your tightest Claude Code limit, falling back to the
+    /// tightest limit across all accounts if you don't have a Claude Code account.
+    var menuBarRemaining: Double? {
+        let claudeWindows = snapshots
+            .filter { $0.account.provider == .claude }
+            .flatMap(\.windows)
+            .filter { $0.kind != .other }
+        if let tightestClaude = claudeWindows.map(\.remainingPercent).min() { return tightestClaude }
+        return snapshots.flatMap(\.windows).filter { $0.kind != .other }.map(\.remainingPercent).min()
     }
 
     func refreshIfStale() {

@@ -13,11 +13,31 @@ mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Helpers" "$OUT/Contents/Resources"
 cp "$BIN_DIR/Pitstop" "$OUT/Contents/MacOS/Pitstop"
 cp "$BIN_DIR/PitstopCLI" "$OUT/Contents/Helpers/pitstop"
 cp Resources/Info.plist "$OUT/Contents/Info.plist"
-cp -R "$BIN_DIR/Pitstop_Pitstop.bundle" "$OUT/Contents/Resources/"
+
+# Swift's generated Bundle.module accessor looks for this bundle at the app's
+# own root (sibling of Contents), so that's the only place it needs to ship.
+# It must NOT also go in Contents/MacOS: codesign treats anything there as a
+# nested code component and fails with "bundle format unrecognized" on a
+# plain resource bundle. Its name is always <package>_<target>.
+if [[ -d "$BIN_DIR/Pitstop_Pitstop.bundle" ]]; then
+  cp -R "$BIN_DIR/Pitstop_Pitstop.bundle" "$OUT/Pitstop_Pitstop.bundle"
+fi
 
 # Ad-hoc signatures, fine for your own Macs. Sign the helper before the app.
 codesign --force --sign - "$OUT/Contents/Helpers/pitstop"
-codesign --force --sign - "$OUT"
+
+# codesign warns "unsealed contents present in the bundle root" because the
+# resource bundle sits outside Contents/ — expected and harmless here, but it
+# can exit non-zero on some codesign versions, which would silently kill this
+# script (set -e) before the --install step below ever runs. Only treat it as
+# fatal if it's a different error.
+if ! CODESIGN_LOG=$(codesign --force --sign - "$OUT" 2>&1); then
+  if ! grep -q "unsealed contents present in the bundle root" <<< "$CODESIGN_LOG"; then
+    echo "$CODESIGN_LOG" >&2
+    exit 1
+  fi
+  echo "Note: $CODESIGN_LOG"
+fi
 echo "Built $OUT"
 
 if [[ "${1:-}" == "--install" ]]; then

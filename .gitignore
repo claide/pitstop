@@ -3,3 +3,5 @@ dist/
 .swiftpm/
 DerivedData/
 .vscode/
+.DS_Store
+**/.DS_Store

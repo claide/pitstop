@@ -19,6 +19,8 @@ REPO=$(git remote get-url origin | sed -E 's#^(git@github.com:|https://github.co
 BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Resources/Info.plist)
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Resources/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $((BUILD + 1))" Resources/Info.plist
+# Version shown at the top of the README.
+sed -i '' -E "s/^v[0-9]+\.[0-9]+\.[0-9]+: /$TAG: /" README.md
 git commit -am "Release $TAG" || true
 git tag "$TAG"
 git push origin HEAD "$TAG"

@@ -11,9 +11,11 @@ USAGE
   pitstop check (--points N [--size light|normal|heavy] | --need session:40,weekly:8)
                 [--provider claude|codex] [--account NAME] [--json]
       Decide whether a ticket fits. Exit codes: 0 go/tight, 1 wait, 2 unknown, 3 split.
+      Without --account, checks the account CLAUDE_CONFIG_DIR / CODEX_HOME points at.
 
   pitstop mark start|end TICKET [--points N] [--size light|normal|heavy]
       Record usage before and after a ticket, to calibrate estimates.
+      Records only the account CLAUDE_CONFIG_DIR / CODEX_HOME points at.
 
   pitstop calibrate [--apply] [--force]
       Compare real ticket costs with the estimate table. --apply saves the new
@@ -63,13 +65,21 @@ func parsePoints() -> Double? {
     return points
 }
 
-func loadAndFetch(provider: ProviderKind? = nil) async -> [AccountSnapshot] {
+/// `currentOnly` keeps, per provider, just the account this process runs under
+/// (all of that provider's accounts if none matches).
+func loadAndFetch(provider: ProviderKind? = nil, currentOnly: Bool = false) async -> [AccountSnapshot] {
     let loaded = AccountStore.load()
     if let problem = loaded.problem { warn(problem) }
     var accounts = UsageFetcher.activeAccounts(loaded.accounts)
     if let provider { accounts = accounts.filter { $0.provider == provider } }
+    if currentOnly {
+        let current = ProviderKind.allCases.compactMap { Account.current($0, in: accounts) }
+        accounts = accounts.filter { account in
+            !current.contains { $0.provider == account.provider } || current.contains(account)
+        }
+    }
     let snapshots = await UsageFetcher.fetchAll(accounts)
-    if provider == nil { SnapshotFile.write(snapshots) }
+    if provider == nil, !currentOnly { SnapshotFile.write(snapshots) }
     return snapshots
 }
 
@@ -174,7 +184,7 @@ case "mark":
     guard args.count >= 3, ["start", "end"].contains(args[1]) else {
         fail("Usage: pitstop mark start|end TICKET [--points N] [--size light|normal|heavy]")
     }
-    let snapshots = await loadAndFetch()
+    let snapshots = await loadAndFetch(currentOnly: true)
     let mark = TicketMark(ticket: args[2], phase: args[1], points: parsePoints(),
                           size: option("--size") == nil ? nil : parseSize(), snapshots: snapshots)
     do {

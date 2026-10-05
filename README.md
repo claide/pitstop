@@ -69,6 +69,10 @@ Adding a second account later:
 
 Set `"enabled": false` to hide an account without deleting it.
 
+`pitstop check` and `pitstop mark` use the account the calling session is signed in with: the one
+whose `configDir` matches `CLAUDE_CONFIG_DIR` / `CODEX_HOME` (the default folder when unset).
+Pass `--account NAME` to check a different one. If nothing matches, the first account is used.
+
 ## Files
 ```
 Sources/PitstopCore/   shared: accounts, providers, estimator, quota check, ticket log

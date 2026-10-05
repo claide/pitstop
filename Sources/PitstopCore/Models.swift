@@ -9,6 +9,14 @@ public enum ProviderKind: String, Codable, CaseIterable, Sendable {
         case .codex: return "Codex"
         }
     }
+
+    /// Environment variable that points the CLI at a non-default config folder.
+    public var configDirVariable: String {
+        switch self {
+        case .claude: return "CLAUDE_CONFIG_DIR"
+        case .codex: return "CODEX_HOME"
+        }
+    }
 }
 
 /// `session` is the short window (5h). `weekly` is the long window (7 days,
@@ -61,6 +69,20 @@ public struct Account: Identifiable, Hashable, Codable, Sendable {
     public var resolvedDir: String {
         if let dir = configDir, !dir.isEmpty { return (dir as NSString).expandingTildeInPath }
         return NSHomeDirectory() + (provider == .claude ? "/.claude" : "/.codex")
+    }
+
+    /// The account this process is running under: the one whose folder matches
+    /// CLAUDE_CONFIG_DIR / CODEX_HOME, or the default-folder account when that's unset.
+    /// Commands run by Claude Code or Codex inherit the variable, so this is the login doing the work.
+    public static func current(_ provider: ProviderKind, in accounts: [Account],
+                               environment: [String: String] = ProcessInfo.processInfo.environment) -> Account? {
+        let probe = Account(id: "", name: "", provider: provider, configDir: environment[provider.configDirVariable])
+        let dir = canonicalPath(probe.resolvedDir)
+        return accounts.first { $0.provider == provider && canonicalPath($0.resolvedDir) == dir }
+    }
+
+    private static func canonicalPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
     }
 }
 

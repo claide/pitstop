@@ -66,9 +66,11 @@ public enum QuotaCheck {
         return make(status, readyAt: status == .wait ? readyAt : nil)
     }
 
-    /// Checks `accountName` (or the first account) and lists other accounts that could take the ticket.
+    /// Checks `accountName` (or the account this process runs under, else the first one)
+    /// and lists other accounts that could take the ticket.
     public static func run(provider: ProviderKind, need: Need?, accountName: String?,
-                           snapshots: [AccountSnapshot]) -> CheckResult {
+                           snapshots: [AccountSnapshot],
+                           environment: [String: String] = ProcessInfo.processInfo.environment) -> CheckResult {
         let candidates = snapshots.filter { $0.account.provider == provider }
 
         guard let need else {
@@ -80,7 +82,8 @@ public enum QuotaCheck {
         if let accountName {
             target = candidates.first { $0.account.name.caseInsensitiveCompare(accountName) == .orderedSame }
         } else {
-            target = candidates.first
+            let current = Account.current(provider, in: candidates.map(\.account), environment: environment)
+            target = candidates.first { $0.account.id == current?.id } ?? candidates.first
         }
         guard let target else {
             let which = accountName.map { "\"\($0)\"" } ?? "any"

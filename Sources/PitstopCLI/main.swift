@@ -117,8 +117,18 @@ func installApp() -> Never {
     try? fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
     let dest = targetDir.appendingPathComponent("Pitstop.app")
 
+    // This pitstop already lives inside the installed app, so there's nothing to copy. Usually
+    // a symlink left by scripts/bundle.sh is shadowing Homebrew's pitstop, which would make
+    // `brew upgrade` look like it did nothing.
     guard source.standardizedFileURL.path != dest.standardizedFileURL.path else {
-        print("Pitstop is already running from \(dest.path).")
+        let brewCopies = ["/opt/homebrew/opt/pitstop", "/usr/local/opt/pitstop"]
+        if brewCopies.contains(where: { fm.fileExists(atPath: $0) }) {
+            fail("""
+                This pitstop is the copy inside \(dest.path), not Homebrew's, so nothing was updated.
+                Run `brew link --overwrite pitstop`, then `pitstop app install` again.
+                """, code: 1)
+        }
+        print("This pitstop is the copy inside \(dest.path), so there's nothing to install. Use scripts/bundle.sh --install to rebuild it.")
         exit(0)
     }
 

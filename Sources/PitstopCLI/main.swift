@@ -13,13 +13,17 @@ USAGE
       Decide whether a ticket fits. Exit codes: 0 go/tight, 1 wait, 2 unknown, 3 split.
       Without --account, checks the account CLAUDE_CONFIG_DIR / CODEX_HOME points at.
 
-  pitstop mark start|end TICKET [--points N] [--size light|normal|heavy]
+  pitstop mark start|end TICKET [--points N] [--size light|normal|heavy] [--provider claude|codex]
       Record usage before and after a ticket, to calibrate estimates.
-      Records only the account CLAUDE_CONFIG_DIR / CODEX_HOME points at.
+      Records only the account CLAUDE_CONFIG_DIR / CODEX_HOME points at. Run from Claude Code,
+      it records Claude only; elsewhere, pass --provider. Exits 1 if no usage could be read.
+
+  pitstop report TICKET [--json]
+      Show one finished ticket's real usage, or why it can't be measured. Exit codes: 0 measured, 1 not.
 
   pitstop calibrate [--apply] [--force]
-      Compare real ticket costs with the estimate table. --apply saves the new
-      table (needs 10 finished tickets unless --force).
+      Compare real ticket costs with the estimate table, and list tickets that can't be
+      counted and why. --apply saves the new table (needs 10 finished tickets unless --force).
 
   pitstop accounts
       Show configured accounts and where accounts.json lives.
@@ -57,6 +61,31 @@ func parseSize() -> TicketSize {
     guard let raw = option("--size") else { return .normal }
     guard let size = TicketSize(rawValue: raw.lowercased()) else { fail("--size must be light, normal or heavy.") }
     return size
+}
+
+func parseProvider() -> ProviderKind? {
+    guard let raw = option("--provider") else { return nil }
+    guard let provider = ProviderKind(rawValue: raw.lowercased()) else { fail("--provider must be claude or codex.") }
+    return provider
+}
+
+/// The provider a mark belongs to: --provider, else Claude when run from Claude Code
+/// (which sets CLAUDECODE=1 for the commands it runs), else every provider.
+func markProvider() -> ProviderKind? {
+    if let provider = parseProvider() { return provider }
+    return ProcessInfo.processInfo.environment["CLAUDECODE"] == "1" ? .claude : nil
+}
+
+func describe(_ usage: MarkUsage) -> String {
+    let parts = [usage.sessionUsed.map { "\(percent($0)) session" }, usage.weeklyUsed.map { "\(percent($0)) weekly" }]
+        .compactMap { $0 }.joined(separator: ", ")
+    return "\(usage.accountName) \(parts.isEmpty ? "no limits reported" : parts)"
+}
+
+func costLine(_ cost: TicketCost) -> String {
+    let pts = cost.points.map { "\(Int($0)) pts" } ?? "? pts"
+    let weekly = cost.weekly.map { ", \(percent($0)) weekly" } ?? ""
+    return "\(cost.ticket)  \(pts), \(cost.size?.rawValue ?? "normal"), \(cost.account): \(percent(cost.session)) session\(weekly)"
 }
 
 func parsePoints() -> Double? {
@@ -167,13 +196,7 @@ case "status":
     }
 
 case "check":
-    let provider: ProviderKind
-    if let raw = option("--provider") {
-        guard let p = ProviderKind(rawValue: raw.lowercased()) else { fail("--provider must be claude or codex.") }
-        provider = p
-    } else {
-        provider = .claude
-    }
+    let provider = parseProvider() ?? .claude
 
     let need: Need?
     if let raw = option("--need") {
@@ -192,27 +215,37 @@ case "check":
 
 case "mark":
     guard args.count >= 3, ["start", "end"].contains(args[1]) else {
-        fail("Usage: pitstop mark start|end TICKET [--points N] [--size light|normal|heavy]")
+        fail("Usage: pitstop mark start|end TICKET [--points N] [--size light|normal|heavy] [--provider claude|codex]")
     }
-    let snapshots = await loadAndFetch(currentOnly: true)
+    let provider = markProvider()
+    let snapshots = await loadAndFetch(provider: provider, currentOnly: true)
     let mark = TicketMark(ticket: args[2], phase: args[1], points: parsePoints(),
                           size: option("--size") == nil ? nil : parseSize(), snapshots: snapshots)
+    // A mark without usage can never be measured, so don't save one that looks fine but isn't.
+    guard !mark.usage.isEmpty else {
+        let errors = snapshots.compactMap(\.error)
+        let why = errors.isEmpty
+            ? "No signed-in \(provider?.displayName ?? "Claude Code or Codex") account found."
+            : errors.joined(separator: " ")
+        fail("Couldn't read usage, so the \(mark.phase) of \(mark.ticket) wasn't recorded. \(why)\n"
+             + "This ticket won't count toward calibration.", code: 1)
+    }
     do {
         try TicketLog.append(mark)
-        print("Recorded \(mark.phase) for \(mark.ticket).")
+        print("Recorded \(mark.phase) for \(mark.ticket): \(mark.usage.map(describe).joined(separator: "; ")).")
     } catch {
         fail("Couldn't write the ticket log: \(error.localizedDescription)", code: 1)
     }
 
 case "calibrate":
-    let costs = TicketLog.costs()
+    let (costs, skipped) = TicketLog.outcomes()
     let current = Estimator.table()
     let proposed = TicketLog.calibratedTable(from: costs)
     print("Finished tickets with usable data: \(costs.count)\(Estimator.isCalibrated ? " (table already calibrated once)" : "")")
-    for cost in costs {
-        let pts = cost.points.map { "\(Int($0)) pts" } ?? "? pts"
-        let weekly = cost.weekly.map { ", \(percent($0)) weekly" } ?? ""
-        print("  \(cost.ticket)  \(pts), \(cost.size?.rawValue ?? "normal"), \(cost.account): \(percent(cost.session)) session\(weekly)")
+    for cost in costs { print("  \(costLine(cost))") }
+    if !skipped.isEmpty {
+        print("\nNot counted:")
+        for ticket in skipped { print("  \(ticket.ticket)  \(ticket.reason)") }
     }
     print("\nPoints   Current table     Proposed")
     for row in proposed {
@@ -233,6 +266,28 @@ case "calibrate":
             fail("Couldn't save the table: \(error.localizedDescription)", code: 1)
         }
     }
+
+case "report":
+    guard args.count >= 2, !args[1].hasPrefix("--") else { fail("Usage: pitstop report TICKET [--json]") }
+    let ticket = args[1].uppercased()
+    let marks = TicketLog.marks().filter { $0.ticket == ticket }
+    let report: TicketReport
+    if marks.isEmpty {
+        report = TicketReport(ticket: ticket, cost: nil, skipped: "no marks recorded")
+    } else {
+        switch TicketLog.measure(ticket: ticket, marks: marks) {
+        case .measured(let cost): report = TicketReport(ticket: ticket, cost: cost, skipped: nil)
+        case .skipped(let reason): report = TicketReport(ticket: ticket, cost: nil, skipped: reason)
+        }
+    }
+    if has("--json") {
+        printJSON(report)
+    } else if let cost = report.cost {
+        print(costLine(cost))
+    } else {
+        print("\(ticket): can't be measured: \(report.skipped ?? "unknown reason").")
+    }
+    exit(report.cost == nil ? 1 : 0)
 
 case "accounts":
     let loaded = AccountStore.load()

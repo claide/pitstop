@@ -45,7 +45,8 @@ pitstop check --points 3 --size heavy          # 0 go/tight, 1 wait, 2 unknown, 
 pitstop check --need session:40,weekly:8 --json
 pitstop mark start GEEK-11699 --points 3 --size heavy
 pitstop mark end GEEK-11699
-pitstop calibrate            # compare real costs with the table
+pitstop report GEEK-11699    # one ticket's real usage, or why it can't be measured (--json too)
+pitstop calibrate            # compare real costs with the table, and list tickets not counted
 pitstop calibrate --apply    # after 10 finished tickets
 pitstop accounts
 ```
@@ -72,6 +73,17 @@ Set `"enabled": false` to hide an account without deleting it.
 `pitstop check` and `pitstop mark` use the account the calling session is signed in with: the one
 whose `configDir` matches `CLAUDE_CONFIG_DIR` / `CODEX_HOME` (the default folder when unset).
 Pass `--account NAME` to check a different one. If nothing matches, the first account is used.
+
+`pitstop mark` records only one provider when it knows which one is doing the work: Claude when run
+from Claude Code, or whatever `--provider` says. Run anywhere else without `--provider`, it records
+every provider, and a ticket's cost comes from whichever account's usage grew the most. If no usage
+can be read (an expired login, no network), `mark` saves nothing and exits 1, so a ticket never
+silently drops out of calibration.
+
+Ticket costs are measured on the whole account, so anything else using the same login during a
+ticket (claude.ai chats, other sessions) counts toward it. Tickets that cross a limit reset can't be
+measured and are listed under "Not counted", which means long tickets are underrepresented when
+calibrating.
 
 ## Files
 ```
